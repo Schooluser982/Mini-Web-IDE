@@ -31,3 +31,5 @@ No frameworks or heavy libraries required.
 Lightweight, portable, and easy to host anywhere.
 
 Demonstrates your understanding of the fundamentals and your ability to build tools from scratch.
+# How to use:
+Simply download the zip file, open it, and double-click the HTML file, and it will open and run directly in your browser
