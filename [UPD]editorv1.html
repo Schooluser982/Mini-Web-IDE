@@ -1,0 +1,148 @@
+<script>
+let dark = true;
+
+const htmlCM = CodeMirror.fromTextArea(htmlEditor, {
+  mode: "xml",
+  lineNumbers: true,
+  theme: "material-darker"
+});
+const cssCM = CodeMirror.fromTextArea(cssEditor, {
+  mode: "css",
+  lineNumbers: true,
+  theme: "material-darker"
+});
+const jsCM = CodeMirror.fromTextArea(jsEditor, {
+  mode: "javascript",
+  lineNumbers: true,
+  theme: "material-darker"
+});
+
+/* ---------------- THEME ---------------- */
+themeBtn.onclick = () => {
+  dark = !dark;
+  document.body.classList.toggle("light", !dark);
+  const t = dark ? "material-darker" : "eclipse";
+  htmlCM.setOption("theme", t);
+  cssCM.setOption("theme", t);
+  jsCM.setOption("theme", t);
+};
+
+/* ---------------- TABS ---------------- */
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll(".tab,.editor-wrapper")
+      .forEach(e => e.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById(tab.dataset.t + "-w").classList.add("active");
+    htmlCM.refresh(); cssCM.refresh(); jsCM.refresh();
+  };
+});
+
+/* ---------------- CONSOLE ---------------- */
+const consoleDiv = document.getElementById("console");
+
+function clearConsole() {
+  consoleDiv.textContent = "";
+}
+
+function logToConsole(type, msg) {
+  const line = document.createElement("div");
+  line.textContent = `[${type}] ${msg}`;
+  consoleDiv.appendChild(line);
+  consoleDiv.scrollTop = consoleDiv.scrollHeight;
+}
+
+/* Receive logs from iframe / new tab */
+window.addEventListener("message", e => {
+  if (!e.data || !e.data.type) return;
+  logToConsole(e.data.type, e.data.message);
+});
+
+/* ---------------- RUN CODE ---------------- */
+function openInNewTab(doc) {
+  const w = window.open("about:blank");
+  if (!w) return alert("Popup blocked");
+  w.document.open();
+  w.document.write(doc);
+  w.document.close();
+}
+
+function runCode(target = "preview") {
+  clearConsole();
+
+  const wrappedJS = `
+    (function(){
+      const send = (type, msg) =>
+        parent.postMessage({ type, message: msg }, "*");
+
+      console.log = (...a) => send("log", a.join(" "));
+      console.error = (...a) => send("error", a.join(" "));
+
+      window.onerror = (m,l) => send("error", m + " (line " + l + ")");
+
+      try {
+        ${jsCM.getValue()}
+      } catch(e) {
+        send("error", e.toString());
+      }
+    })();
+  `;
+
+  const doc = `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>${cssCM.getValue()}</style>
+</head>
+<body>
+${htmlCM.getValue()}
+<script>${wrappedJS}<\/script>
+</body>
+</html>
+  `;
+
+  if (target === "newtab") openInNewTab(doc);
+  else preview.srcdoc = doc;
+}
+
+/* ---------------- BUTTONS ---------------- */
+runBtn.onclick = () => {
+  confirm("OK = Preview\nCancel = New Tab")
+    ? runCode("preview")
+    : runCode("newtab");
+};
+
+devtoolsBtn.onclick = () =>
+  devtools.classList.toggle("open");
+
+/* ---------------- SAVE / LOAD ---------------- */
+saveBtn.onclick = () => {
+  const blob = new Blob([JSON.stringify({
+    html: htmlCM.getValue(),
+    css: cssCM.getValue(),
+    js: jsCM.getValue()
+  }, null, 2)], { type: "application/json" });
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "project.txt";
+  a.click();
+};
+
+loadBtn.onclick = () => fileInput.click();
+
+fileInput.onchange = e => {
+  const r = new FileReader();
+  r.onload = () => {
+    const d = JSON.parse(r.result);
+    htmlCM.setValue(d.html || "");
+    cssCM.setValue(d.css || "");
+    jsCM.setValue(d.js || "");
+  };
+  r.readAsText(e.target.files[0]);
+};
+
+/* ---------------- INITIAL RUN ---------------- */
+runCode();
+</script>
